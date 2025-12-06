@@ -19,8 +19,32 @@ jobs:
   validate-agents-metadata:
     name: Validate Agents Metadata
     runs-on: ubuntu-latest
+    environment: production  # Use environment where AGENT_MIGRATION_PAT is configured
     
     steps:
+      - name: Check for required secrets
+        env:
+          MIGRATION_PAT: ${{ secrets.AGENT_MIGRATION_PAT }}
+        run: |
+          echo "🔐 Checking for required secrets..."
+          
+          # Check if AGENT_MIGRATION_PAT is available
+          if [ -z "$MIGRATION_PAT" ]; then
+            echo "⚠️  WARNING: AGENT_MIGRATION_PAT secret is not configured"
+            echo "This secret may be required for:"
+            echo "  - Cross-repository operations"
+            echo "  - Automated PR creation"
+            echo "  - Advanced workflow triggers"
+            echo ""
+            echo "Secret should be configured in:"
+            echo "  - Repository Settings > Environments > production"
+            echo "  - Or Settings > Secrets and variables > Actions"
+            echo ""
+          else
+            echo "✅ AGENT_MIGRATION_PAT secret is configured and accessible"
+            echo "   Token length: ${#MIGRATION_PAT} characters"
+          fi
+      
       - name: Checkout repository
         uses: actions/checkout@v4
         

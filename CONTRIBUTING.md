@@ -225,10 +225,26 @@ When working on migrations:
 
 ### Required Secrets
 
-Some operations may require secrets:
-- `AGENT_MIGRATION_PAT`: Personal Access Token for migrations
+Some operations may require secrets configured in the repository Environment:
 
-Ensure secrets are configured before running automated workflows.
+- `AGENT_MIGRATION_PAT`: Personal Access Token for migrations
+  - **Location:** Repository Settings > Environments > production
+  - **Status:** ✅ Configured
+  - **Usage:** Accessed by workflows that reference the `production` environment
+
+To use secrets in workflows:
+```yaml
+jobs:
+  my-job:
+    runs-on: ubuntu-latest
+    environment: production  # References the environment with secrets
+    steps:
+      - name: Use secret
+        env:
+          TOKEN: ${{ secrets.AGENT_MIGRATION_PAT }}
+        run: |
+          # Your commands that need the token
+```
 
 ## Getting Help
 
