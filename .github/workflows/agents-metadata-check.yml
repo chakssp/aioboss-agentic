@@ -1,0 +1,140 @@
+name: Agents Metadata Check
+
+on:
+  pull_request:
+    paths:
+      - '.github/agents/**'
+      - '.github/workflows/agents-metadata-check.yml'
+  push:
+    branches:
+      - main
+      - main-screenextender
+      - 'migration/agents-ssot-*'
+    paths:
+      - '.github/agents/**'
+      - '.github/workflows/agents-metadata-check.yml'
+  workflow_dispatch:
+
+jobs:
+  validate-agents-metadata:
+    name: Validate Agents Metadata
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          
+      - name: Check agents directory exists
+        id: check-dir
+        run: |
+          if [ -d ".github/agents" ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "✅ .github/agents directory exists"
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "⚠️  .github/agents directory not found"
+          fi
+          
+      - name: List agent files
+        if: steps.check-dir.outputs.exists == 'true'
+        run: |
+          echo "📋 Agent files found:"
+          find .github/agents -type f -name "*.md" -o -name "*.yml" -o -name "*.yaml" -o -name "*.json" || echo "No agent files found"
+          
+      - name: Validate agent configuration files
+        if: steps.check-dir.outputs.exists == 'true'
+        run: |
+          echo "🔍 Validating agent configurations..."
+          
+          # Check for .agent.md template
+          if [ -f ".github/agents/.agent.md" ]; then
+            echo "✅ Found .agent.md template"
+          else
+            echo "⚠️  .agent.md template not found"
+          fi
+          
+          # Validate YAML files
+          for file in $(find .github/agents -name "*.yml" -o -name "*.yaml" 2>/dev/null); do
+            echo "Validating $file..."
+            if command -v yamllint > /dev/null 2>&1; then
+              yamllint "$file" || echo "⚠️  YAML validation failed for $file"
+            else
+              # Basic YAML syntax check using Python
+              python3 -c "import yaml; yaml.safe_load(open('$file'))" && echo "✅ $file is valid YAML" || echo "❌ $file has invalid YAML syntax"
+            fi
+          done
+          
+      - name: Check agent metadata completeness
+        if: steps.check-dir.outputs.exists == 'true'
+        run: |
+          echo "📊 Checking agent metadata completeness..."
+          
+          # Check for required metadata fields in agent files
+          for file in $(find .github/agents -name "*.md" -not -name ".agent.md" 2>/dev/null); do
+            echo "Checking $file..."
+            
+            required_fields=("Agent Name" "Version" "Type" "Description")
+            missing_fields=()
+            
+            for field in "${required_fields[@]}"; do
+              if ! grep -qi "$field" "$file"; then
+                missing_fields+=("$field")
+              fi
+            done
+            
+            if [ ${#missing_fields[@]} -eq 0 ]; then
+              echo "✅ $file has all required metadata fields"
+            else
+              echo "⚠️  $file is missing: ${missing_fields[*]}"
+            fi
+          done
+          
+      - name: Validate agent architecture documentation
+        run: |
+          if [ -f ".github/agent-architecture.md" ]; then
+            echo "✅ Agent architecture documentation found"
+            
+            # Check for key sections
+            sections=("Overview" "Architecture" "Directory Structure")
+            for section in "${sections[@]}"; do
+              if grep -qi "$section" .github/agent-architecture.md; then
+                echo "✅ Section '$section' found"
+              else
+                echo "⚠️  Section '$section' not found"
+              fi
+            done
+          else
+            echo "⚠️  Agent architecture documentation not found"
+          fi
+          
+      - name: Check for migration log
+        run: |
+          if [ -f "MIGRATION-LOG.md" ]; then
+            echo "✅ Migration log found"
+            
+            # Verify migration log has required sections
+            if grep -qi "Migration Steps" MIGRATION-LOG.md && \
+               grep -qi "Critical Notes" MIGRATION-LOG.md; then
+              echo "✅ Migration log has required sections"
+            else
+              echo "⚠️  Migration log may be missing required sections"
+            fi
+          else
+            echo "ℹ️  Migration log not found (may not be required)"
+          fi
+          
+      - name: Summary
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "📋 Agents Metadata Validation Complete"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo ""
+          echo "✅ All validation checks completed"
+          echo "⚠️  Review warnings above for potential improvements"
+          echo ""
+          echo "For more information, see .github/agent-architecture.md"
